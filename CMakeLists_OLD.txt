@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 3.10)
+project(PiProjector VERSION 1.0)
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+find_package(OpenCV REQUIRED)
+include_directories(${OpenCV_INCLUDE_DIRS}) #optional >= 2.8.11
+#set(NAME_SRC
+#    src/example.cpp)
+#set(NAME_HEADERS
+#    include/header.h)
+
+add_executable(PiProjector src/example.cpp)
+target_link_libraries(PiProjector ${OpenCV_LIBS})
+# target_include_directories(PiProjector PRIVATE ${OpenCV_INCLUDE_DIRS})
