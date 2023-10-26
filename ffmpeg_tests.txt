@@ -1,0 +1,31 @@
+raw: https://stackoverflow.com/questions/20609760/convert-h264-video-to-raw-yuv-format
+
+ffmpeg -pix_fmts | grep -i pixel_format_name
++ TODO
+
+
+
+
+
+
+framerate: https://stackoverflow.com/questions/45462731/using-ffmpeg-to-change-framerate
+(-y = overwrite output)
+
+https://trac.ffmpeg.org/wiki/ChangingFrameRate
+
+nous: ffmpeg -i downscale.mp4 -filter:v fps=10 downscale_10fps.mp4
+
+
+
+
+downscale: https://superuser.com/questions/624563/how-to-resize-a-video-to-make-it-smaller-with-ffmpeg
+
+ffmpeg -i input.avi -filter:v scale=720:-1 -c:a copy output.mkv
+nous: ffmpeg -i w2b.mp4 -filter:v scale=100:-1 -c:a copy downscale.mp4
+
+
+
+
+
+black border:  https://stackoverflow.com/questions/46671252/how-to-add-black-borders-to-video
+-vf "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1"
