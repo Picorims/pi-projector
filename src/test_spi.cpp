@@ -86,7 +86,7 @@ int main()
    cout << "Init result: " << fd << endl;
 
    // clear display
-   buffer[0] = 0x76;
+   buffer[0] = 0xFF;
    wiringPiSPIDataRW(CHANNEL, buffer, 1);
 
    /*sleep(5);
