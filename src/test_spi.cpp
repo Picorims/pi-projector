@@ -69,7 +69,7 @@ using namespace std;
 
 // channel is the wiringPi name for the chip select (or chip enable) pin.
 // Set this to 0 or 1, depending on how it's connected.
-static const int CHANNEL = 1;
+static const int CHANNEL = 0;
 
 int main()
 {
@@ -89,7 +89,7 @@ int main()
    buffer[0] = 0x76;
    wiringPiSPIDataRW(CHANNEL, buffer, 1);
 
-   sleep(5);
+   /*sleep(5);
 
    // Do a one-hot bit selection for each field of the display
    // It displays gibberish, but tells us that we're correctly addressing all 
@@ -127,6 +127,7 @@ int main()
 
    // clear display again
    buffer[0] = 0x76;
-   wiringPiSPIDataRW(CHANNEL, buffer, 1);
+   wiringPiSPIDataRW(CHANNEL, buffer, 1);*/
 
+   return 0;
 }
