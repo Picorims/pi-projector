@@ -39,7 +39,9 @@ int main(int argc, char** argv) {
         std::cerr << "Usage: " << argv[0] << " <video_file_path>" << std::endl;
         return -1;
     }
-    std::cout << argv[2] << std::endl;
+
+    std::cout << "launching projector using the following video: " << argv[1];
+
     if (argc == 3 && argv[2] == std::string("-v")) verbose = true;
 
     // Ouvrir la vidéo
