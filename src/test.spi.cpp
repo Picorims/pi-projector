@@ -5,7 +5,7 @@
 
 using namespace std;
 
-const int CHANNEL = 1; // Vérifiez votre canal
+const int CHANNEL = 0; // Vérifiez votre canal
 const int SPI_SPEED = 500000; // 500 kHz
 
 // Mappage des caractères à leur représentation pour l'affichage
