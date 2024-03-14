@@ -4,11 +4,20 @@
 #include <vector>
 #include <chrono>
 #include <thread>
+#include <unistd.h>
+#include <wiringPi.h>
+#include <wiringPiSPI.h>
 
 #define WIDTH 100
 #define HEIGHT 100
 #define BUFFER_SIZE 10
 bool verbose = false;
+
+// Initialisation de WiringPi SPI
+const int SPI_CHANNEL = 0; // Utilisez le canal 0 de SPI
+const int SPI_SPEED = 1000000; // 1 MHz
+
+
 
 
 // https://stackoverflow.com/questions/56048952/is-it-possible-to-implement-a-thread-safe-circular-bufffer-that-consists-of-arra
@@ -82,6 +91,12 @@ void debug_px(short px) {
 
 void send_px(short px) {
     if (verbose) debug_px(px);
+
+    // Préparation des données pour l'envoi via SPI
+    unsigned char data[2];
+    data[0] = px >> 8; // MSB
+    data[1] = px & 0xFF; // LSB
+    wiringPiSPIDataRW(SPI_CHANNEL, data, 2);
 }
 
 // Fonction pour traiter une section de la frame
@@ -104,6 +119,16 @@ int main(int argc, char** argv) {
         return -1;
     }
     if (argc == 3 && std::string(argv[2]) == "-v") verbose = true;
+
+    // Initialisation de WiringPi et SPI
+    if (wiringPiSetup() == -1) {
+        std::cerr << "Failed to initialize wiringPi" << std::endl;
+        return -1;
+    }
+    if (wiringPiSPISetup(SPI_CHANNEL, SPI_SPEED) == -1) {
+        std::cerr << "Failed to setup SPI" << std::endl;
+        return -1;
+    }
 
     cv::VideoCapture cap(argv[1]);
     if(!cap.isOpened()) {
