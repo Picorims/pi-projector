@@ -12,6 +12,7 @@
 #define HEIGHT 100
 #define BUFFER_SIZE 10
 bool verbose = false;
+bool spiEnabled = true;
 
 // Initialisation de WiringPi SPI
 const int SPI_CHANNEL = 0; // Utilisez le canal 0 de SPI
@@ -92,11 +93,13 @@ void debug_px(short px) {
 void send_px(short px) {
     if (verbose) debug_px(px);
 
-    // Préparation des données pour l'envoi via SPI
-    unsigned char data[2];
-    data[0] = px >> 8; // MSB
-    data[1] = px & 0xFF; // LSB
-    wiringPiSPIDataRW(SPI_CHANNEL, data, 2);
+    if (spiEnabled) {
+        // Préparation des données pour l'envoi via SPI
+        unsigned char data[2];
+        data[0] = px >> 8; // MSB
+        data[1] = px & 0xFF; // LSB
+        wiringPiSPIDataRW(SPI_CHANNEL, data, 2);
+    }
 }
 
 // Fonction pour traiter une section de la frame
@@ -118,16 +121,23 @@ int main(int argc, char** argv) {
         std::cerr << "Usage: " << argv[0] << " <video_file_path>" << std::endl;
         return -1;
     }
-    if (argc == 3 && std::string(argv[2]) == "-v") verbose = true;
+    if (argc > 2) {
+        for (int i = 2; i < argc; i++) {
+            if (std::string(argv[i]) == "-v") verbose = true;
+            if (std::string(argv[i]) == "--no-spi") spiEnabled = false;
+        }
+    }
 
     // Initialisation de WiringPi et SPI
-    if (wiringPiSetup() == -1) {
-        std::cerr << "Failed to initialize wiringPi" << std::endl;
-        return -1;
-    }
-    if (wiringPiSPISetup(SPI_CHANNEL, SPI_SPEED) == -1) {
-        std::cerr << "Failed to setup SPI" << std::endl;
-        return -1;
+    if (spiEnabled) {
+        if (wiringPiSetup() == -1) {
+            std::cerr << "Failed to initialize wiringPi" << std::endl;
+            return -1;
+        }
+        if (wiringPiSPISetup(SPI_CHANNEL, SPI_SPEED) == -1) {
+            std::cerr << "Failed to setup SPI" << std::endl;
+            return -1;
+        }
     }
 
     cv::VideoCapture cap(argv[1]);
