@@ -20,6 +20,7 @@ bool flagSpiEnabled = true;
 bool flagGraphicDisp = false;
 bool flagDumpBuffer = false;
 bool flagVerboseBuffer = false;
+bool flagLaserSim = false;
 
 // Initialisation de WiringPi SPI
 const int SPI_CHANNEL = 0; // Utilisez le canal 0 de SPI
@@ -196,8 +197,16 @@ int main(int argc, char** argv) {
             if (std::string(argv[i]) == "-g") flagGraphicDisp = true;
             if (std::string(argv[i]) == "-b") flagDumpBuffer = true;
             if (std::string(argv[i]) == "-vb") flagVerboseBuffer = true;
+            if (std::string(argv[i]) == "--laser-sim") flagLaserSim = true;
         }
     }
+
+    std::cout << "Verbose: " << flagVerbose << std::endl;
+    std::cout << "SPI enabled: " << flagSpiEnabled << std::endl;
+    std::cout << "Graphic display: " << flagGraphicDisp << std::endl;
+    std::cout << "Buffer dump: " << flagDumpBuffer << std::endl;
+    std::cout << "Verbose buffer: " << flagVerboseBuffer << std::endl;
+    std::cout << "Laser simulation: " << flagLaserSim << std::endl;
 
     // Initialisation de WiringPi et SPI
     if (flagSpiEnabled) {
@@ -229,8 +238,10 @@ int main(int argc, char** argv) {
     int cursorY = 0;
     auto now = now_micros();
     auto then = now_micros();
+    auto nowDisp = now_micros();
+    auto thenDisp = now_micros();
     auto videoStart = now_micros();
-    auto ellapsed = then - now;
+    auto totalEllapsedMicros = then - now;
 
     // other initialization
     auto start = std::chrono::system_clock::now();
@@ -242,8 +253,9 @@ int main(int argc, char** argv) {
 
     while(true) {
         now = now_micros();
+        nowDisp = now_micros();
         auto ellapsedMicros = now - then;
-        ellapsed = now - videoStart;
+        totalEllapsedMicros = now - videoStart;
 
         if (frame_buffer->next_write_pos_available() && !cachedAllVideo && (ellapsedMicros < pxIntervalMicros || frame_buffer->empty())) {
             frame_buffer->incr_write_pos();
@@ -285,14 +297,20 @@ int main(int argc, char** argv) {
                         int g = ((px & 0b0000000011110000) >> 4) * 16;
                         int b = ((px & 0b0000000000001111)) * 16;
 
-                        canvas.at<cv::Vec3b>(cursorY, cursorX) = cv::Vec3b(b,g,r);
+                        if (flagLaserSim) {
+                            int x = (totalEllapsedMicros/(FPS*HEIGHT*WIDTH)) % WIDTH;
+                            int y = (totalEllapsedMicros/(FPS*HEIGHT)) % HEIGHT;
+                            canvas.at<cv::Vec3b>(y, x) = cv::Vec3b(b,g,r);
+                        } else {
+                            canvas.at<cv::Vec3b>(cursorY, cursorX) = cv::Vec3b(b,g,r);
+                        }
                     }
         
                     // update state
                     int pixelsEllapsed = ellapsedMicros / pxIntervalMicros;
-                    if (pixelsEllapsed > 100) std::cout << "skipping " << pixelsEllapsed-1 << " pixels." << std::endl;
-                    while (pixelsEllapsed > 10000) {
-                        pixelsEllapsed -= 10000;
+                    if (pixelsEllapsed > 100 && flagVerboseBuffer) std::cout << "skipping " << pixelsEllapsed-1 << " pixels." << std::endl;
+                    while (pixelsEllapsed > WIDTH*HEIGHT) {
+                        pixelsEllapsed -= (WIDTH*HEIGHT);
                         frame_buffer->incr_read_pos();
                     }
 
@@ -307,7 +325,6 @@ int main(int argc, char** argv) {
                         //Changed of frame?
                         if (cursorY < oldY) {
                             frame_buffer->incr_read_pos();
-                            refreshDisp = true;
                         }
                     }
 
@@ -317,6 +334,7 @@ int main(int argc, char** argv) {
                 break;
             }
         }
+        refreshDisp = nowDisp - thenDisp > ((1.0/FPS) * 1000000);
         if (flagGraphicDisp && refreshDisp) {
             cv::Mat scaledCanvas;
             const int SCALE = 4; 
@@ -324,7 +342,7 @@ int main(int argc, char** argv) {
             cv::imshow("Display", scaledCanvas);
             if (flagDumpBuffer) frame_buffer->dump_buffer();
             cv::waitKey(1);
-            refreshDisp = false;
+            thenDisp = nowDisp;
         }
 
     }
@@ -337,7 +355,7 @@ int main(int argc, char** argv) {
     double timeMsPerFrame = (elapsed_time / static_cast<double>(nbFrames)) * 1000;
     std::cout << "Per frame (ms): " << timeMsPerFrame << std::endl;
     double timeMsPerPixel = (timeMsPerFrame / static_cast<double>(WIDTH * HEIGHT));
-    std::cout << "Per pixel (ms): " << timeMsPerPixel << std::endl;
+    std::cout << "Per pixel (microseconds): " << timeMsPerPixel*1000 << std::endl;
     if (flagGraphicDisp) cv::waitKey(30000);
 
     cap.release();
