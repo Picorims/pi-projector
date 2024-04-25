@@ -185,9 +185,27 @@ long long now_micros() {
     return now;
 }
 
+long long now_nanos() {
+        //see: https://stackoverflow.com/a/2834294
+    //from: https://stackoverflow.com/questions/2831841/how-to-get-the-time-in-milliseconds-in-c?answertab=trending#tab-top
+    namespace sc = std::chrono;
+
+    auto time = sc::high_resolution_clock::now(); // get the current time
+
+    auto since_epoch = time.time_since_epoch(); // get the duration since epoch
+
+    // I don't know what system_clock returns
+    // I think it's uint64_t nanoseconds since epoch
+    // Either way this duration_cast will do the right thing
+    auto nanos = sc::duration_cast<sc::nanoseconds>(since_epoch);
+
+    long long now = nanos.count(); // just like java (new Date()).getTime();
+    return now;
+}
+
 int main(int argc, char** argv) {
     if(argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <video_file_path> [-v] [--no-spi] [-g] [-b]" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <video_file_path> [-v] [--no-spi] [-g] [-b] [-vb] [--laser-sim]" << std::endl;
         return -1;
     }
     if (argc > 2) {
@@ -233,15 +251,15 @@ int main(int argc, char** argv) {
     cv::Mat canvas(HEIGHT, WIDTH, CV_8UC3, cv::Scalar(0, 0, 0));
 
     // sync init
-    long long pxIntervalMicros = 1000000 /*micros*/ / (FPS * WIDTH * HEIGHT);
+    long long pxIntervalMicros = (1000000 /*micros*/ / (FPS * WIDTH * HEIGHT));
     int cursorX = 0;
     int cursorY = 0;
     auto now = now_micros();
     auto then = now_micros();
     auto nowDisp = now_micros();
     auto thenDisp = now_micros();
-    auto videoStart = now_micros();
-    auto totalEllapsedMicros = then - now;
+    auto videoStart = now_nanos();
+    long long ellapsedOneFrameNanos = 0;
 
     // other initialization
     auto start = std::chrono::system_clock::now();
@@ -255,7 +273,7 @@ int main(int argc, char** argv) {
         now = now_micros();
         nowDisp = now_micros();
         auto ellapsedMicros = now - then;
-        totalEllapsedMicros = now - videoStart;
+        ellapsedOneFrameNanos = (now_nanos() - videoStart) % (1000000000 / FPS);
 
         if (frame_buffer->next_write_pos_available() && !cachedAllVideo && (ellapsedMicros < pxIntervalMicros || frame_buffer->empty())) {
             frame_buffer->incr_write_pos();
@@ -298,8 +316,13 @@ int main(int argc, char** argv) {
                         int b = ((px & 0b0000000000001111)) * 16;
 
                         if (flagLaserSim) {
-                            int x = (totalEllapsedMicros/(FPS*HEIGHT*WIDTH)) % WIDTH;
-                            int y = (totalEllapsedMicros/(FPS*HEIGHT)) % HEIGHT;
+                            long long wScanLengthNanos = 1000000000 / FPS / HEIGHT / WIDTH;
+                            // we find the ellapsed time modulo the spanning time.
+                            // Then we use the rule of three to map the position
+                            // in the timeframe into a pixel coordinate.
+                            int x = ((ellapsedOneFrameNanos % (wScanLengthNanos)) * WIDTH / wScanLengthNanos) % WIDTH;
+                            long long hScanLengthNanos = 1000000000 / FPS / HEIGHT;
+                            int y = ((ellapsedOneFrameNanos % hScanLengthNanos) * HEIGHT / hScanLengthNanos) % HEIGHT;
                             canvas.at<cv::Vec3b>(y, x) = cv::Vec3b(b,g,r);
                         } else {
                             canvas.at<cv::Vec3b>(cursorY, cursorX) = cv::Vec3b(b,g,r);
