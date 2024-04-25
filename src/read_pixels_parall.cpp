@@ -350,15 +350,15 @@ int main(int argc, char** argv) {
                         int b = ((px & 0b0000000000001111)) * 16;
 
                         if (flagLaserSim) {
-                            long long wScanLengthNanos = 1000000000 / FPS / HEIGHT / WIDTH;
+                            long long wScanLengthNanos = 1000000000 / FPS / HEIGHT;
                             // we find the ellapsed time modulo the spanning time.
                             // Then we use the rule of three to map the position
                             // in the timeframe into a pixel coordinate.
                             double w = WIDTH_DOUBLE;
-                            int x = (int) ((((ellapsedOneFrameNanos % (wScanLengthNanos))) * (w / wScanLengthNanos)) + /*round through cast*/ 0.5) % WIDTH;
-                            long long hScanLengthNanos = 1000000000 / FPS / HEIGHT;
+                            int x = (int) (((ellapsedOneFrameNanos % wScanLengthNanos) * (w / wScanLengthNanos)) /*round to floor through cast*/) % WIDTH;
+                            long long hScanLengthNanos = 1000000000 / FPS;
                             double h = HEIGHT_DOUBLE;
-                            int y = (int) (((ellapsedOneFrameNanos % hScanLengthNanos) * (h / hScanLengthNanos)) + /*round through cast*/ 0.5) % HEIGHT;
+                            int y = (int) (((ellapsedOneFrameNanos % hScanLengthNanos) * (h / hScanLengthNanos)) /*round to floor through cast*/) % HEIGHT;
                             canvas.at<cv::Vec3b>(y, x) = cv::Vec3b(b,g,r);
                         } else {
                             canvas.at<cv::Vec3b>(cursorY, cursorX) = cv::Vec3b(b,g,r);
