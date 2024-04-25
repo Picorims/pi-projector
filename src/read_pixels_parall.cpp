@@ -355,7 +355,6 @@ int main(int argc, char** argv) {
                             // Then we use the rule of three to map the position
                             // in the timeframe into a pixel coordinate.
                             double w = WIDTH_DOUBLE;
-                            std::cout << (ellapsedOneFrameNanos % (wScanLengthNanos)) << std::endl;
                             int x = (int) ((((ellapsedOneFrameNanos % (wScanLengthNanos))) * (w / wScanLengthNanos)) + /*round through cast*/ 0.5) % WIDTH;
                             long long hScanLengthNanos = 1000000000 / FPS / HEIGHT;
                             double h = HEIGHT_DOUBLE;
