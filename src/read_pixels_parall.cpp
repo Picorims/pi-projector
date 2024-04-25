@@ -263,6 +263,12 @@ int main(int argc, char** argv) {
     auto videoStart = now_nanos();
     long long ellapsedOneFrameNanos = 0;
 
+    // enslavement
+    long long sendStart = now_micros();
+    long long sendStop = now_micros();
+    bool adjustInterval = false;
+    const double PROPORTIONALITY_COEF = 1/2;
+
     // other initialization
     auto start = std::chrono::system_clock::now();
     bool firstSend = true;
@@ -313,7 +319,6 @@ int main(int argc, char** argv) {
         } else {
             if (frame_buffer->current_frame_readable()) {  
                 if (ellapsedMicros > pxIntervalMicros) {
-                    long long sendStart = now_micros();
                     // send
                     if (firstSend) {
                         firstSend = false;
@@ -346,6 +351,7 @@ int main(int argc, char** argv) {
                     while (pixelsEllapsed > WIDTH*HEIGHT) {
                         pixelsEllapsed -= (WIDTH*HEIGHT);
                         frame_buffer->incr_read_pos();
+                        adjustInterval = true;
                     }
 
                     auto oldX = cursorX;
@@ -359,23 +365,11 @@ int main(int argc, char** argv) {
                         //Changed of frame?
                         if (cursorY < oldY) {
                             frame_buffer->incr_read_pos();
+                            adjustInterval = true;
                         }
                     }
 
                     then = now;
-
-                    // adjust interval based on send speed
-                    long long sendStop = now_micros();
-                    long long sendDuration = (sendStop - sendStart);
-                    if (sendDuration > 0) {
-                        if (sendDuration >= idealPxIntervalMicros) {
-                            pxIntervalMicros = 1;
-                        } else {
-                            pxIntervalMicros = idealPxIntervalMicros - sendDuration;
-                        }
-                    } else {
-                        pxIntervalMicros = idealPxIntervalMicros;
-                    }
                 }
             } else if (cachedAllVideo) {
                 break;
@@ -396,6 +390,27 @@ int main(int argc, char** argv) {
                 canvas = cv::Mat(HEIGHT, WIDTH, CV_8UC3, cv::Scalar(0, 0, 0));
                 scaledCanvas.release();
             }
+        }
+
+        if (adjustInterval) {
+            // adjust interval based on send speed (enslavement)
+            sendStop = now_micros();
+            long long sendDuration = (sendStop - sendStart);
+            long long averagePxSendDuration = sendDuration / (WIDTH*HEIGHT);
+            std::cout << averagePxSendDuration << std::endl;
+            long long deltaError = averagePxSendDuration - idealPxIntervalMicros;
+            long long adjustedDeltaError = (deltaError * PROPORTIONALITY_COEF);
+            if (adjustedDeltaError < 1) adjustedDeltaError = 1;
+
+            if (averagePxSendDuration > idealPxIntervalMicros) {
+                pxIntervalMicros = pxIntervalMicros - adjustedDeltaError;
+            } else if (averagePxSendDuration < idealPxIntervalMicros) {
+                pxIntervalMicros = pxIntervalMicros + adjustedDeltaError;
+            }
+            if (pxIntervalMicros < 1) pxIntervalMicros = 1;
+
+            sendStart = now_micros();
+            adjustInterval = false;
         }
     }
 
