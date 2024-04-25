@@ -273,7 +273,9 @@ int main(int argc, char** argv) {
         now = now_micros();
         nowDisp = now_micros();
         auto ellapsedMicros = now - then;
-        ellapsedOneFrameNanos = (now_nanos() - videoStart) % (1000000000 / FPS);
+        if (flagLaserSim) {
+            ellapsedOneFrameNanos = (now_nanos() - videoStart) % (1000000000 / FPS);
+        }
 
         if (frame_buffer->next_write_pos_available() && !cachedAllVideo && (ellapsedMicros < pxIntervalMicros || frame_buffer->empty())) {
             frame_buffer->incr_write_pos();
@@ -357,17 +359,19 @@ int main(int argc, char** argv) {
                 break;
             }
         }
-        refreshDisp = nowDisp - thenDisp > ((1.0/FPS) * 1000000);
-        if (flagGraphicDisp && refreshDisp) {
-            cv::Mat scaledCanvas;
-            const int SCALE = 4; 
-            cv::resize(canvas, scaledCanvas, cv::Size(SCALE*HEIGHT, SCALE*WIDTH), SCALE, SCALE, cv::INTER_NEAREST);
-            cv::imshow("Display", scaledCanvas);
-            if (flagDumpBuffer) frame_buffer->dump_buffer();
-            cv::waitKey(1);
-            thenDisp = nowDisp;
+        
+        if (flagGraphicDisp) {
+            refreshDisp = nowDisp - thenDisp > ((1.0/FPS) * 1000000);
+            if (refreshDisp) {
+                cv::Mat scaledCanvas;
+                const int SCALE = 4; 
+                cv::resize(canvas, scaledCanvas, cv::Size(SCALE*HEIGHT, SCALE*WIDTH), SCALE, SCALE, cv::INTER_NEAREST);
+                cv::imshow("Display", scaledCanvas);
+                if (flagDumpBuffer) frame_buffer->dump_buffer();
+                cv::waitKey(1);
+                thenDisp = nowDisp;
+            }
         }
-
     }
 
     auto stop = std::chrono::system_clock::now();
