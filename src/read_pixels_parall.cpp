@@ -5,6 +5,7 @@
 #include <chrono>
 #include <thread>
 #include <unistd.h>
+#include <stdlib.h>
 
 #ifdef WIRING_PI
 #include <wiringPi.h>
@@ -14,13 +15,17 @@
 #define WIDTH 100
 #define HEIGHT 100
 #define FPS 10
-#define BUFFER_SIZE 10
+#define BUFFER_SIZE 10000
+const double WIDTH_DOUBLE = static_cast<double>(WIDTH);
+const double HEIGHT_DOUBLE = static_cast<double>(HEIGHT);
 bool flagVerbose = false;
 bool flagSpiEnabled = true;
 bool flagGraphicDisp = false;
 bool flagDumpBuffer = false;
 bool flagVerboseBuffer = false;
+bool flagVerboseBufferExtra = false;
 bool flagLaserSim = false;
+bool flagFullCache = false;
 
 // Initialisation de WiringPi SPI
 const int SPI_CHANNEL = 0; // Utilisez le canal 0 de SPI
@@ -46,11 +51,14 @@ public:
     }
 
     void print_readable_frames() {
-        std::cout << "Readable frames: ";
+        if (flagVerboseBufferExtra) std::cout << "Readable frames: ";
+        int count;
         for (int i = 0; i < BUFFER_SIZE; i++) {
-            std::cout << readable_frames[i] << " ";
+            if (readable_frames[i]) count++;
+            if (flagVerboseBufferExtra) std::cout << readable_frames[i] << " ";
         }
-        std::cout << std::endl;
+        if (flagVerboseBufferExtra) std::cout << std::endl;
+        std::cout << "Total readable frames: " << count << std::endl;
     }
 
     void dump_buffer() {
@@ -206,7 +214,7 @@ long long now_nanos() {
 
 int main(int argc, char** argv) {
     if(argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <video_file_path> [-v] [--no-spi] [-g] [-b] [-vb] [--laser-sim]" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <video_file_path> [-v] [--no-spi] [-g] [-b] [-vb] [-vbe] [--laser-sim] [--full-cache]" << std::endl;
         return -1;
     }
     if (argc > 2) {
@@ -216,7 +224,9 @@ int main(int argc, char** argv) {
             if (std::string(argv[i]) == "-g") flagGraphicDisp = true;
             if (std::string(argv[i]) == "-b") flagDumpBuffer = true;
             if (std::string(argv[i]) == "-vb") flagVerboseBuffer = true;
+            if (std::string(argv[i]) == "-vbe") flagVerboseBufferExtra = true;
             if (std::string(argv[i]) == "--laser-sim") flagLaserSim = true;
+            if (std::string(argv[i]) == "--full-cache") flagFullCache = true;
         }
     }
 
@@ -260,7 +270,8 @@ int main(int argc, char** argv) {
     auto then = now_micros();
     auto nowDisp = now_micros();
     auto thenDisp = now_micros();
-    auto videoStart = now_nanos();
+    auto videoStartNanos = now_nanos();
+    auto lastPixelSendStart = now_micros();
     long long ellapsedOneFrameNanos = 0;
 
     // enslavement
@@ -284,10 +295,10 @@ int main(int argc, char** argv) {
         nowDisp = now_micros();
         auto ellapsedMicros = now - then;
         if (flagLaserSim) {
-            ellapsedOneFrameNanos = (now_nanos() - videoStart) % (1000000000 / FPS);
+            ellapsedOneFrameNanos = (now_nanos() - videoStartNanos) % (1000000000 / FPS);
         }
 
-        if (frame_buffer->next_write_pos_available() && !cachedAllVideo && (ellapsedMicros < (pxIntervalMicros/2) || frame_buffer->empty())) {
+        if (frame_buffer->next_write_pos_available() && !cachedAllVideo && ((now - lastPixelSendStart) < (pxIntervalMicros/10) || frame_buffer->empty() || flagFullCache)) {
             frame_buffer->incr_write_pos();
             cv::Mat frame;
             cap >> frame;
@@ -296,7 +307,10 @@ int main(int argc, char** argv) {
                 cachedAllVideo = true;
             } else {
                 nbFrames++;
-                if (flagVerboseBuffer) std::cout << "Frame " << nbFrames << " being cached." << std::endl;
+                if (flagVerboseBuffer) {
+                    std::cout << "Frame " << nbFrames << " being cached.";
+                    std::cout << "\tellapsed since last send (ms): " << (now - lastPixelSendStart) << std::endl;
+                }
 
                 int numThreads = std::thread::hardware_concurrency();
                 std::vector<std::thread> threads;
@@ -321,9 +335,11 @@ int main(int argc, char** argv) {
             if (frame_buffer->current_frame_readable()) {  
                 if (ellapsedMicros > pxIntervalMicros) {
                     // send
+                    lastPixelSendStart = now_micros();
                     if (firstSend) {
                         firstSend = false;
                         start = std::chrono::system_clock::now();
+                        if (flagFullCache) videoStartNanos = now_nanos();
                     }
                     send_px(frame_buffer->read(cursorX,cursorY));
                     nbPixels++;
@@ -338,9 +354,12 @@ int main(int argc, char** argv) {
                             // we find the ellapsed time modulo the spanning time.
                             // Then we use the rule of three to map the position
                             // in the timeframe into a pixel coordinate.
-                            int x = ((ellapsedOneFrameNanos % (wScanLengthNanos)) * WIDTH / wScanLengthNanos) % WIDTH;
+                            double w = WIDTH_DOUBLE;
+                            std::cout << (ellapsedOneFrameNanos % (wScanLengthNanos)) << std::endl;
+                            int x = (int) ((((ellapsedOneFrameNanos % (wScanLengthNanos))) * (w / wScanLengthNanos)) + /*round through cast*/ 0.5) % WIDTH;
                             long long hScanLengthNanos = 1000000000 / FPS / HEIGHT;
-                            int y = ((ellapsedOneFrameNanos % hScanLengthNanos) * HEIGHT / hScanLengthNanos) % HEIGHT;
+                            double h = HEIGHT_DOUBLE;
+                            int y = (int) (((ellapsedOneFrameNanos % hScanLengthNanos) * (h / hScanLengthNanos)) + /*round through cast*/ 0.5) % HEIGHT;
                             canvas.at<cv::Vec3b>(y, x) = cv::Vec3b(b,g,r);
                         } else {
                             canvas.at<cv::Vec3b>(cursorY, cursorX) = cv::Vec3b(b,g,r);
@@ -349,7 +368,7 @@ int main(int argc, char** argv) {
         
                     // update state
                     int pixelsEllapsed = ellapsedMicros / pxIntervalMicros;
-                    if (pixelsEllapsed > 100 && flagVerboseBuffer) std::cout << "skipping " << pixelsEllapsed-1 << " pixels." << std::endl;
+                    if (pixelsEllapsed > 500 && flagVerboseBuffer) std::cout << "skipping " << pixelsEllapsed-1 << " pixels." << std::endl;
                     while (pixelsEllapsed > WIDTH*HEIGHT) {
                         pixelsEllapsed -= (WIDTH*HEIGHT);
                         frame_buffer->incr_read_pos();
