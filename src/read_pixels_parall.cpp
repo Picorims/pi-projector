@@ -28,20 +28,24 @@ bool flagVerboseBufferExtra = false;
 bool flagLaserSim = false;
 bool flagFullCache = false;
 bool flagLoop = false;
+bool flagColorOffset = false;
 int loopCount = 0;
 
 // Initialisation de WiringPi SPI
 const int SPI_CHANNEL = 0; // Utilisez le canal 0 de SPI
 const int SPI_SPEED = 1000000; // 1 MHz
 
-
+//offset
+const int OFFSET_X_R = 5, OFFSET_Y_R = 0;
+const int OFFSET_X_G = 0, OFFSET_Y_G = 4;
+const int OFFSET_X_B = -3, OFFSET_Y_B = -3;
 
 
 // https://stackoverflow.com/questions/56048952/is-it-possible-to-implement-a-thread-safe-circular-bufffer-that-consists-of-arra
 
 class circular_buffer_t {
 private:
-    short buffer[BUFFER_SIZE][WIDTH][HEIGHT] = {};
+    short buffer[BUFFER_SIZE][WIDTH][HEIGHT] = {}; // [x][y]
     bool readable_frames[BUFFER_SIZE] = {};
     int read_pos = 0;
     int write_pos = 0;
@@ -138,6 +142,39 @@ public:
         buffer[write_pos][i][j] = v;
     }
 
+    void writeR(int i, int j, short v) {
+        assert(i >= 0 && j >= 0);
+        assert(i < WIDTH && j < HEIGHT);
+        assert(!readable_frames[write_pos]);
+
+        short currentVal = buffer[write_pos][i][j];
+        short eraseRMask = 0xF0FF;
+        short newR = (currentVal & eraseRMask) | (v << 8);
+        buffer[write_pos][i][j] = newR;
+    }
+
+    void writeG(int i, int j, short v) {
+        assert(i >= 0 && j >= 0);
+        assert(i < WIDTH && j < HEIGHT);
+        assert(!readable_frames[write_pos]);
+
+        short currentVal = buffer[write_pos][i][j];
+        short eraseRMask = 0xFF0F;
+        short newG = (currentVal & eraseRMask) | (v << 4);
+        buffer[write_pos][i][j] = newG;
+    }
+
+    void writeB(int i, int j, short v) {
+        assert(i >= 0 && j >= 0);
+        assert(i < WIDTH && j < HEIGHT);
+        assert(!readable_frames[write_pos]);
+
+        short currentVal = buffer[write_pos][i][j];
+        short eraseRMask = 0xFFF0;
+        short newB = (currentVal & eraseRMask) | v;
+        buffer[write_pos][i][j] = newB;
+    }
+
     void loop() {
         read_pos = 0;
         for (int i = 0; i < write_pos; i++) {
@@ -180,8 +217,30 @@ void process_frame_section(cv::Mat frame, int startRow, int endRow, int nbFrames
             int r16 = color[2] / 16;
             int g16 = color[1] / 16;
             int b16 = color[0] / 16;
-            short pixel = (r16 << 8) + (g16 << 4) + b16;
-            buf->write(j,i,pixel);
+
+            if ((OFFSET_X_R == 0 && OFFSET_Y_R == 0 && OFFSET_X_G == 0 && OFFSET_Y_G == 0 && OFFSET_X_B == 0 && OFFSET_Y_B == 0) || !flagColorOffset) {
+                short pixel = (r16 << 8) + (g16 << 4) + b16;
+                buf->write(j, i, pixel);
+            } else {
+                // Apply offset for R, G, B
+                int r_i = std::max(0, std::min(HEIGHT-1, i + OFFSET_Y_R));
+                int r_j = std::max(0, std::min(WIDTH-1, j + OFFSET_X_R));
+                int g_i = std::max(0, std::min(HEIGHT-1, i + OFFSET_Y_G));
+                int g_j = std::max(0, std::min(WIDTH-1, j + OFFSET_X_G));
+                int b_i = std::max(0, std::min(HEIGHT-1, i + OFFSET_Y_B));
+                int b_j = std::max(0, std::min(WIDTH-1, j + OFFSET_X_B));
+
+                short pixel = (r16 << 8) + (g16 << 4) + b16;
+                if (i >= OFFSET_Y_R && j >= OFFSET_X_R) {
+                    buf->writeR(r_j, r_i, r16);
+                }
+                if (i >= OFFSET_Y_G && j >= OFFSET_X_G) {
+                    buf->writeG(g_j, g_i, g16);
+                }
+                if (i >= OFFSET_Y_B && j >= OFFSET_X_B) {
+                    buf->writeB(b_j, b_i, b16);
+                }
+            }
         }
     }
 }
@@ -224,7 +283,7 @@ long long now_nanos() {
 
 int main(int argc, char** argv) {
     if(argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <video_file_path> [-v] [--no-spi] [-g] [-b] [-vb] [-vbe] [--laser-sim] [--full-cache] [--loop [amount=1]]" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <video_file_path> [-v] [--no-spi] [-g] [-b] [-vb] [-vbe] [--laser-sim] [--full-cache] [--loop [amount=1]] [--color-offset]" << std::endl;
         return -1;
     }
     if (argc > 2) {
@@ -245,6 +304,7 @@ int main(int argc, char** argv) {
                     loopCount = 1;
                 }
             }
+            if (std::string(argv[i]) == "--color-offset") flagColorOffset = true;
         }
     }
 
