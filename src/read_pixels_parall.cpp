@@ -6,6 +6,7 @@
 #include <thread>
 #include <unistd.h>
 #include <stdlib.h>
+#include <regex>
 
 #ifdef WIRING_PI
 #include <wiringPi.h>
@@ -26,6 +27,8 @@ bool flagVerboseBuffer = false;
 bool flagVerboseBufferExtra = false;
 bool flagLaserSim = false;
 bool flagFullCache = false;
+bool flagLoop = false;
+int loopCount = 0;
 
 // Initialisation de WiringPi SPI
 const int SPI_CHANNEL = 0; // Utilisez le canal 0 de SPI
@@ -134,6 +137,13 @@ public:
 
         buffer[write_pos][i][j] = v;
     }
+
+    void loop() {
+        read_pos = 0;
+        for (int i = 0; i < write_pos; i++) {
+            readable_frames[i] = true;
+        }
+    }
 };
 
 
@@ -214,7 +224,7 @@ long long now_nanos() {
 
 int main(int argc, char** argv) {
     if(argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <video_file_path> [-v] [--no-spi] [-g] [-b] [-vb] [-vbe] [--laser-sim] [--full-cache]" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <video_file_path> [-v] [--no-spi] [-g] [-b] [-vb] [-vbe] [--laser-sim] [--full-cache] [--loop [amount=1]]" << std::endl;
         return -1;
     }
     if (argc > 2) {
@@ -227,6 +237,14 @@ int main(int argc, char** argv) {
             if (std::string(argv[i]) == "-vbe") flagVerboseBufferExtra = true;
             if (std::string(argv[i]) == "--laser-sim") flagLaserSim = true;
             if (std::string(argv[i]) == "--full-cache") flagFullCache = true;
+            if (std::string(argv[i]) == "--loop") {
+                flagLoop = true;
+                if (i+1 < argc && std::regex_match(argv[i+1], std::regex("[0-9]+"))) {
+                    loopCount = std::stoi(argv[i+1]);
+                } else {
+                    loopCount = 1;
+                }
+            }
         }
     }
 
@@ -235,7 +253,16 @@ int main(int argc, char** argv) {
     std::cout << "Graphic display: " << flagGraphicDisp << std::endl;
     std::cout << "Buffer dump: " << flagDumpBuffer << std::endl;
     std::cout << "Verbose buffer: " << flagVerboseBuffer << std::endl;
+    std::cout << "Verbose buffer Extra: " << flagVerboseBufferExtra << std::endl;
     std::cout << "Laser simulation: " << flagLaserSim << std::endl;
+    std::cout << "Full cache: " << flagFullCache << std::endl;
+    std::cout << "Loop: " << flagLoop << std::endl;
+    std::cout << "Loop count (number of times it triggers a repeat): " << loopCount << std::endl;
+
+    if (flagLoop && !flagFullCache) {
+        std::cerr << "Loop flag requires full cache flag to be set." << std::endl;
+        return -1;
+    }
 
     // Initialisation de WiringPi et SPI
     if (flagSpiEnabled) {
@@ -288,6 +315,7 @@ int main(int argc, char** argv) {
     bool refreshDisp = false;
     bool cachedAllVideo = false;
     std::shared_ptr<circular_buffer_t> frame_buffer = std::make_shared<circular_buffer_t>();
+    int initialLoopCount = loopCount;
 
 
     while(true) {
@@ -392,7 +420,13 @@ int main(int argc, char** argv) {
                     then = now;
                 }
             } else if (cachedAllVideo) {
-                break;
+                if (flagFullCache && flagLoop && loopCount > 0) {
+                    frame_buffer->loop();
+                    loopCount--;
+                    std::cout << "LOOP (left: " << loopCount << ")" << std::endl;
+                } else {
+                    break;
+                }
             }
         }
 
@@ -447,7 +481,7 @@ int main(int argc, char** argv) {
     std::cout << "Per frame (ms): " << timeMsPerFrame << std::endl;
     double timeMsPerPixel = (timeMsPerFrame / static_cast<double>(WIDTH * HEIGHT));
     std::cout << "Per pixel (microseconds): " << timeMsPerPixel*1000 << std::endl;
-    double percentSent = static_cast<double>(nbPixels) / (nbFrames*WIDTH*HEIGHT) * 100;
+    double percentSent = static_cast<double>(nbPixels) / (nbFrames*WIDTH*HEIGHT * (initialLoopCount+1)) * 100;
     std::cout << "Sent: " << percentSent << " %" << std::endl;
 
     //wait 30s at most 
