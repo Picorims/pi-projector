@@ -85,6 +85,7 @@ public:
     }
 
     void incr_read_pos() {
+        if (this->empty()) return;
         readable_frames[read_pos] = false;
         read_pos = next_read_pos();
         if (flagVerboseBuffer) {
@@ -263,6 +264,7 @@ int main(int argc, char** argv) {
 
     // other initialization
     auto start = std::chrono::system_clock::now();
+    bool firstSend = true;
     int nbFrames = 0;
     bool refreshDisp = false;
     bool cachedAllVideo = false;
@@ -277,7 +279,7 @@ int main(int argc, char** argv) {
             ellapsedOneFrameNanos = (now_nanos() - videoStart) % (1000000000 / FPS);
         }
 
-        if (frame_buffer->next_write_pos_available() && !cachedAllVideo && (ellapsedMicros < pxIntervalMicros || frame_buffer->empty())) {
+        if (frame_buffer->next_write_pos_available() && !cachedAllVideo && (ellapsedMicros < (pxIntervalMicros/2) || frame_buffer->empty())) {
             frame_buffer->incr_write_pos();
             cv::Mat frame;
             cap >> frame;
@@ -306,10 +308,15 @@ int main(int argc, char** argv) {
 
                 if(cv::waitKey(30) >= 0) break;
             }
+            frame.release();
         } else {
             if (frame_buffer->current_frame_readable()) {  
                 if (ellapsedMicros > pxIntervalMicros) {
                     // send
+                    if (firstSend) {
+                        firstSend = false;
+                        start = std::chrono::system_clock::now();
+                    }
                     send_px(frame_buffer->read(cursorX,cursorY));
                     if (flagGraphicDisp) {
                         auto px = frame_buffer->read(cursorX,cursorY);
@@ -359,7 +366,7 @@ int main(int argc, char** argv) {
                 break;
             }
         }
-        
+
         if (flagGraphicDisp) {
             refreshDisp = nowDisp - thenDisp > ((1.0/FPS) * 1000000);
             if (refreshDisp) {
@@ -368,8 +375,11 @@ int main(int argc, char** argv) {
                 cv::resize(canvas, scaledCanvas, cv::Size(SCALE*HEIGHT, SCALE*WIDTH), SCALE, SCALE, cv::INTER_NEAREST);
                 cv::imshow("Display", scaledCanvas);
                 if (flagDumpBuffer) frame_buffer->dump_buffer();
-                cv::waitKey(1);
+                cv::waitKey(1); // trigger refresh
                 thenDisp = nowDisp;
+                canvas.release();
+                canvas = cv::Mat(HEIGHT, WIDTH, CV_8UC3, cv::Scalar(0, 0, 0));
+                scaledCanvas.release();
             }
         }
     }
@@ -386,6 +396,7 @@ int main(int argc, char** argv) {
     if (flagGraphicDisp) cv::waitKey(30000);
 
     cap.release();
+    canvas.release();
     cv::destroyAllWindows();
 
     return 0;
