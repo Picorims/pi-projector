@@ -252,7 +252,8 @@ int main(int argc, char** argv) {
     cv::Mat canvas(HEIGHT, WIDTH, CV_8UC3, cv::Scalar(0, 0, 0));
 
     // sync init
-    long long pxIntervalMicros = (1000000 /*micros*/ / (FPS * WIDTH * HEIGHT));
+    long long idealPxIntervalMicros = (1000000 /*micros*/ / (FPS * WIDTH * HEIGHT));
+    long long pxIntervalMicros = idealPxIntervalMicros;
     int cursorX = 0;
     int cursorY = 0;
     auto now = now_micros();
@@ -312,6 +313,7 @@ int main(int argc, char** argv) {
         } else {
             if (frame_buffer->current_frame_readable()) {  
                 if (ellapsedMicros > pxIntervalMicros) {
+                    long long sendStart = now_micros();
                     // send
                     if (firstSend) {
                         firstSend = false;
@@ -361,6 +363,19 @@ int main(int argc, char** argv) {
                     }
 
                     then = now;
+
+                    // adjust interval based on send speed
+                    long long sendStop = now_micros();
+                    long long sendDuration = (sendStop - sendStart);
+                    if (sendDuration > 0) {
+                        if (sendDuration >= idealPxIntervalMicros) {
+                            pxIntervalMicros = 1;
+                        } else {
+                            pxIntervalMicros = idealPxIntervalMicros - sendDuration;
+                        }
+                    } else {
+                        pxIntervalMicros = idealPxIntervalMicros;
+                    }
                 }
             } else if (cachedAllVideo) {
                 break;
