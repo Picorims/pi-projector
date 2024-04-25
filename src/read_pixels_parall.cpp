@@ -319,6 +319,8 @@ int main(int argc, char** argv) {
     std::cout << "Loop: " << flagLoop << std::endl;
     std::cout << "Loop count (number of times it triggers a repeat): " << loopCount << std::endl;
 
+    std::cout << "NOTE: In this version, gamma, mirroring and aspect ratio are not implemented." << std::endl;
+
     if (flagLoop && !flagFullCache) {
         std::cerr << "Loop flag requires full cache flag to be set." << std::endl;
         return -1;
