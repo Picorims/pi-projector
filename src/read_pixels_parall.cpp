@@ -273,6 +273,7 @@ int main(int argc, char** argv) {
     auto start = std::chrono::system_clock::now();
     bool firstSend = true;
     int nbFrames = 0;
+    int nbPixels = 0;
     bool refreshDisp = false;
     bool cachedAllVideo = false;
     std::shared_ptr<circular_buffer_t> frame_buffer = std::make_shared<circular_buffer_t>();
@@ -325,6 +326,7 @@ int main(int argc, char** argv) {
                         start = std::chrono::system_clock::now();
                     }
                     send_px(frame_buffer->read(cursorX,cursorY));
+                    nbPixels++;
                     if (flagGraphicDisp) {
                         auto px = frame_buffer->read(cursorX,cursorY);
                         int r = ((px & 0b0000111100000000) >> 8) * 16;
@@ -397,11 +399,14 @@ int main(int argc, char** argv) {
             sendStop = now_micros();
             long long sendDuration = (sendStop - sendStart);
             long long averagePxSendDuration = sendDuration / (WIDTH*HEIGHT);
-            std::cout << averagePxSendDuration << std::endl;
+            if (flagVerboseBuffer) std::cout << "average frame pixel sending duration: " << averagePxSendDuration << std::endl;
+            
+            //error
             long long deltaError = averagePxSendDuration - idealPxIntervalMicros;
             long long adjustedDeltaError = (deltaError * PROPORTIONALITY_COEF);
             if (adjustedDeltaError < 1) adjustedDeltaError = 1;
 
+            //enslaving
             if (averagePxSendDuration > idealPxIntervalMicros) {
                 pxIntervalMicros = pxIntervalMicros - adjustedDeltaError;
             } else if (averagePxSendDuration < idealPxIntervalMicros) {
@@ -409,6 +414,7 @@ int main(int argc, char** argv) {
             }
             if (pxIntervalMicros < 1) pxIntervalMicros = 1;
 
+            //reset
             sendStart = now_micros();
             adjustInterval = false;
         }
@@ -423,6 +429,10 @@ int main(int argc, char** argv) {
     std::cout << "Per frame (ms): " << timeMsPerFrame << std::endl;
     double timeMsPerPixel = (timeMsPerFrame / static_cast<double>(WIDTH * HEIGHT));
     std::cout << "Per pixel (microseconds): " << timeMsPerPixel*1000 << std::endl;
+    double percentSent = static_cast<double>(nbPixels) / (nbFrames*WIDTH*HEIGHT) * 100;
+    std::cout << "Sent: " << percentSent << " %" << std::endl;
+
+    //wait 30s at most 
     if (flagGraphicDisp) cv::waitKey(30000);
 
     cap.release();
