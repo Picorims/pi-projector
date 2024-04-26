@@ -301,7 +301,7 @@ long long now_nanos() {
 int main(int argc, char** argv) {
     if(argc < 2) {
         std::cerr << "Usage: " << argv[0] << " <video_file_path> [-v] [--no-spi] [-g] [-b] [-vb] [-vbe] [--laser-sim] [--full-cache] [--loop [amount=1]] [--color-offset] [-mv] [-mh]" << std::endl;
-        std::cerr << "-v: verbose" << std::endl;
+        std::cerr << "-v: verbose (show pixels in terminal)" << std::endl;
         std::cerr << "--no-spi: disable SPI transmission" << std::endl;
         std::cerr << "-g: show graphical window" << std::endl;
         std::cerr << "-b: show graphical window for the buffer" << std::endl;
