@@ -36,7 +36,7 @@ int loopCount = 0;
 
 // Initialisation de WiringPi SPI
 const int SPI_CHANNEL = 0; // Utilisez le canal 0 de SPI
-const int SPI_SPEED = 1000000; // 1 MHz
+const int SPI_SPEED = 2000000; // 2 MHz
 
 //offset
 const int OFFSET_X_R = 5, OFFSET_Y_R = 0;
