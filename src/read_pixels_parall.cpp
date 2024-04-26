@@ -319,24 +319,28 @@ int main(int argc, char** argv) {
     if (argc > 2) {
         for (int i = 2; i < argc; i++) {
             if (std::string(argv[i]) == "-v") flagVerbose = true;
-            if (std::string(argv[i]) == "--no-spi") flagSpiEnabled = false;
-            if (std::string(argv[i]) == "-g") flagGraphicDisp = true;
-            if (std::string(argv[i]) == "-b") flagDumpBuffer = true;
-            if (std::string(argv[i]) == "-vb") flagVerboseBuffer = true;
-            if (std::string(argv[i]) == "-vbe") flagVerboseBufferExtra = true;
-            if (std::string(argv[i]) == "--laser-sim") flagLaserSim = true;
-            if (std::string(argv[i]) == "--full-cache") flagFullCache = true;
-            if (std::string(argv[i]) == "--loop") {
+            else if (std::string(argv[i]) == "--no-spi") flagSpiEnabled = false;
+            else if (std::string(argv[i]) == "-g") flagGraphicDisp = true;
+            else if (std::string(argv[i]) == "-b") flagDumpBuffer = true;
+            else if (std::string(argv[i]) == "-vb") flagVerboseBuffer = true;
+            else if (std::string(argv[i]) == "-vbe") flagVerboseBufferExtra = true;
+            else if (std::string(argv[i]) == "--laser-sim") flagLaserSim = true;
+            else if (std::string(argv[i]) == "--full-cache") flagFullCache = true;
+            else if (std::string(argv[i]) == "--loop") {
                 flagLoop = true;
                 if (i+1 < argc && std::regex_match(argv[i+1], std::regex("[0-9]+"))) {
                     loopCount = std::stoi(argv[i+1]);
+                    i++;
                 } else {
                     loopCount = 1;
                 }
             }
-            if (std::string(argv[i]) == "--color-offset") flagColorOffset = true;
-            if (std::string(argv[i]) == "-mv") flagMirrorVertical = true;
-            if (std::string(argv[i]) == "-mh") flagMirrorHorizontal = true;
+            else if (std::string(argv[i]) == "--color-offset") flagColorOffset = true;
+            else if (std::string(argv[i]) == "-mv") flagMirrorVertical = true;
+            else if (std::string(argv[i]) == "-mh") flagMirrorHorizontal = true;
+            else {
+                std::cerr << "unknown flag: " << argv[i] << ", ignoring this flag." << std::endl;
+            }
         }
     }
 
