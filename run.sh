@@ -22,4 +22,4 @@ ffmpeg -y -i tmp/downscale_10fps.mp4 -vf "scale=100:100:force_original_aspect_ra
 echo ready! ===========================
 
 # reading
-./read_pixels_parall.out ./tmp/projector_input.mp4
+./read_pixels_parall.out ./tmp/projector_input.mp4 --full-cache
