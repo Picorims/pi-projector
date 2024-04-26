@@ -29,6 +29,8 @@ bool flagLaserSim = false;
 bool flagFullCache = false;
 bool flagLoop = false;
 bool flagColorOffset = false;
+bool flagMirrorVertical = false;
+bool flagMirrorHorizontal = false;
 int loopCount = 0;
 
 // Initialisation de WiringPi SPI
@@ -220,7 +222,11 @@ void process_frame_section(cv::Mat frame, int startRow, int endRow, int nbFrames
 
             if ((OFFSET_X_R == 0 && OFFSET_Y_R == 0 && OFFSET_X_G == 0 && OFFSET_Y_G == 0 && OFFSET_X_B == 0 && OFFSET_Y_B == 0) || !flagColorOffset) {
                 short pixel = (r16 << 8) + (g16 << 4) + b16;
-                buf->write(j, i, pixel);
+                int x = j;
+                int y = i;
+                if (flagMirrorHorizontal) x = WIDTH-1 - x;
+                if (flagMirrorVertical) y = HEIGHT-1 - y;
+                buf->write(x, y, pixel);
             } else {
                 // Apply offset for R, G, B
                 int r_i = std::max(0, std::min(HEIGHT-1, i + OFFSET_Y_R));
@@ -229,6 +235,17 @@ void process_frame_section(cv::Mat frame, int startRow, int endRow, int nbFrames
                 int g_j = std::max(0, std::min(WIDTH-1, j + OFFSET_X_G));
                 int b_i = std::max(0, std::min(HEIGHT-1, i + OFFSET_Y_B));
                 int b_j = std::max(0, std::min(WIDTH-1, j + OFFSET_X_B));
+
+                if (flagMirrorHorizontal) {
+                    r_j = WIDTH-1 - r_j;
+                    g_j = WIDTH-1 - g_j;
+                    b_j = WIDTH-1 - b_j;
+                }
+                if (flagMirrorVertical) {
+                    r_i = HEIGHT-1 - r_i;
+                    g_i = HEIGHT-1 - g_i;
+                    b_i = HEIGHT-1 - b_i;
+                }
 
                 short pixel = (r16 << 8) + (g16 << 4) + b16;
                 if (i >= OFFSET_Y_R && j >= OFFSET_X_R) {
@@ -283,7 +300,20 @@ long long now_nanos() {
 
 int main(int argc, char** argv) {
     if(argc < 2) {
-        std::cerr << "Usage: " << argv[0] << " <video_file_path> [-v] [--no-spi] [-g] [-b] [-vb] [-vbe] [--laser-sim] [--full-cache] [--loop [amount=1]] [--color-offset]" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <video_file_path> [-v] [--no-spi] [-g] [-b] [-vb] [-vbe] [--laser-sim] [--full-cache] [--loop [amount=1]] [--color-offset] [-mv] [-mh]" << std::endl;
+        std::cerr << "-v: verbose" << std::endl;
+        std::cerr << "--no-spi: disable SPI transmission" << std::endl;
+        std::cerr << "-g: show graphical window" << std::endl;
+        std::cerr << "-b: show graphical window for the buffer" << std::endl;
+        std::cerr << "-vb: verbose for buffering" << std::endl;
+        std::cerr << "-vbe: extra verbose for buffering" << std::endl;
+        std::cerr << "--laser-sim: laser positioning simulation in graphical window" << std::endl;
+        std::cerr << "--full-cache: cache all the video before launching transmission (short videos only)" << std::endl;
+        std::cerr << "--loop [n]: loop the video. It will go n times back to start" << std::endl;
+        std::cerr << "--color-offset: enable color offset (as defined in the code constants)" << std::endl;
+        std::cerr << "-mv: vertical mirroring" << std::endl;
+        std::cerr << "-mh: horizontal mirroring" << std::endl;
+
         return -1;
     }
     if (argc > 2) {
@@ -305,6 +335,8 @@ int main(int argc, char** argv) {
                 }
             }
             if (std::string(argv[i]) == "--color-offset") flagColorOffset = true;
+            if (std::string(argv[i]) == "-mv") flagMirrorVertical = true;
+            if (std::string(argv[i]) == "-mh") flagMirrorHorizontal = true;
         }
     }
 
@@ -318,8 +350,10 @@ int main(int argc, char** argv) {
     std::cout << "Full cache: " << flagFullCache << std::endl;
     std::cout << "Loop: " << flagLoop << std::endl;
     std::cout << "Loop count (number of times it triggers a repeat): " << loopCount << std::endl;
+    std::cout << "Mirroring - horizontal: " << flagMirrorHorizontal << std::endl;
+    std::cout << "Mirroring - vertical: " << flagMirrorVertical << std::endl;
 
-    std::cout << "NOTE: In this version, gamma, mirroring and aspect ratio are not implemented." << std::endl;
+    std::cout << "NOTE: In this version, gamma and aspect ratio are not implemented." << std::endl;
 
     if (flagLoop && !flagFullCache) {
         std::cerr << "Loop flag requires full cache flag to be set." << std::endl;
