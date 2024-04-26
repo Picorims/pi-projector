@@ -31,6 +31,7 @@ bool flagLoop = false;
 bool flagColorOffset = false;
 bool flagMirrorVertical = false;
 bool flagMirrorHorizontal = false;
+bool flagAspectRatio = false;
 int loopCount = 0;
 
 // Initialisation de WiringPi SPI
@@ -41,6 +42,10 @@ const int SPI_SPEED = 1000000; // 1 MHz
 const int OFFSET_X_R = 5, OFFSET_Y_R = 0;
 const int OFFSET_X_G = 0, OFFSET_Y_G = 4;
 const int OFFSET_X_B = -3, OFFSET_Y_B = -3;
+
+//aspect ratio
+const double ASPECT_RATIO_W = 4.0;
+const double ASPECT_RATIO_H = 3.0;
 
 
 // https://stackoverflow.com/questions/56048952/is-it-possible-to-implement-a-thread-safe-circular-bufffer-that-consists-of-arra
@@ -226,6 +231,14 @@ void process_frame_section(cv::Mat frame, int startRow, int endRow, int nbFrames
                 int y = i;
                 if (flagMirrorHorizontal) x = WIDTH-1 - x;
                 if (flagMirrorVertical) y = HEIGHT-1 - y;
+                if (flagAspectRatio) {
+                    double ratio = std::min(ASPECT_RATIO_W, ASPECT_RATIO_H) / std::max(ASPECT_RATIO_W, ASPECT_RATIO_H);
+                    if (ASPECT_RATIO_W > ASPECT_RATIO_H) {
+                        x = ((int) (ratio * x) + (int) ((WIDTH - (ratio * WIDTH)) / 2.0)) % WIDTH;
+                    } else {
+                        y = ((int) (ratio * y) + (int) ((HEIGHT - (ratio * HEIGHT)) / 2.0)) % HEIGHT;
+                    }
+                }
                 buf->write(x, y, pixel);
             } else {
                 // Apply offset for R, G, B
@@ -246,6 +259,19 @@ void process_frame_section(cv::Mat frame, int startRow, int endRow, int nbFrames
                     g_i = HEIGHT-1 - g_i;
                     b_i = HEIGHT-1 - b_i;
                 }
+                if (flagAspectRatio) {
+                    double ratio = std::min(ASPECT_RATIO_W, ASPECT_RATIO_H) / std::max(ASPECT_RATIO_W, ASPECT_RATIO_H);
+                    if (ASPECT_RATIO_W > ASPECT_RATIO_H) {
+                        r_j = ((int) (ratio * r_j) + (int) ((WIDTH - (ratio * WIDTH)) / 2.0)) % WIDTH;
+                        g_j = ((int) (ratio * g_j) + (int) ((WIDTH - (ratio * WIDTH)) / 2.0)) % WIDTH;
+                        b_j = ((int) (ratio * b_j) + (int) ((WIDTH - (ratio * WIDTH)) / 2.0)) % WIDTH;
+                    } else {
+                        r_i = ((int) (ratio * r_i) + (int) ((HEIGHT - (ratio * HEIGHT)) / 2.0)) % HEIGHT;
+                        g_i = ((int) (ratio * g_i) + (int) ((HEIGHT - (ratio * HEIGHT)) / 2.0)) % HEIGHT;
+                        b_i = ((int) (ratio * b_i) + (int) ((HEIGHT - (ratio * HEIGHT)) / 2.0)) % HEIGHT;
+                    }
+                }
+
 
                 short pixel = (r16 << 8) + (g16 << 4) + b16;
                 if (i >= OFFSET_Y_R && j >= OFFSET_X_R) {
@@ -313,6 +339,7 @@ int main(int argc, char** argv) {
         std::cerr << "--color-offset: enable color offset (as defined in the code constants)" << std::endl;
         std::cerr << "-mv: vertical mirroring" << std::endl;
         std::cerr << "-mh: horizontal mirroring" << std::endl;
+        std::cerr << "-ar: aspect ratio (as defined in the code constants)" << std::endl;
 
         return -1;
     }
@@ -338,6 +365,7 @@ int main(int argc, char** argv) {
             else if (std::string(argv[i]) == "--color-offset") flagColorOffset = true;
             else if (std::string(argv[i]) == "-mv") flagMirrorVertical = true;
             else if (std::string(argv[i]) == "-mh") flagMirrorHorizontal = true;
+            else if (std::string(argv[i]) == "-ar") flagAspectRatio = true;
             else {
                 std::cerr << "unknown flag: " << argv[i] << ", ignoring this flag." << std::endl;
             }
@@ -356,8 +384,9 @@ int main(int argc, char** argv) {
     std::cout << "Loop count (number of times it triggers a repeat): " << loopCount << std::endl;
     std::cout << "Mirroring - horizontal: " << flagMirrorHorizontal << std::endl;
     std::cout << "Mirroring - vertical: " << flagMirrorVertical << std::endl;
+    std::cout << "Aspect Ratio: " << flagAspectRatio << std::endl;
 
-    std::cout << "NOTE: In this version, gamma and aspect ratio are not implemented." << std::endl;
+    std::cout << "NOTE: In this version, gamma is not implemented." << std::endl;
 
     if (flagLoop && !flagFullCache) {
         std::cerr << "Loop flag requires full cache flag to be set." << std::endl;
